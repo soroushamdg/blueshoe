@@ -1,0 +1,11 @@
+Model Information:
+* title:	Nike Flex Contact Shoe 3D Scan (WithTexture)
+* source:	https://sketchfab.com/3d-models/nike-flex-contact-shoe-3d-scan-withtexture-ce4d5dc044484f5a9ecd9747e9be2d87
+* author:	Arkify (https://sketchfab.com/arkify)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Nike Flex Contact Shoe 3D Scan (WithTexture)" (https://sketchfab.com/3d-models/nike-flex-contact-shoe-3d-scan-withtexture-ce4d5dc044484f5a9ecd9747e9be2d87) by Arkify (https://sketchfab.com/arkify) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
