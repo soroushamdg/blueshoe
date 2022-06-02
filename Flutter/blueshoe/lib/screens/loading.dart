@@ -12,11 +12,12 @@ class LoadingDialogShoeAnimation extends StatelessWidget {
     await Future.delayed(Duration(milliseconds: 300));
 
     offlineImageSequenceAnimator = _imageSequenceAnimator;
-    offlineImageSequenceAnimator!.play();
+
+    offlineImageSequenceAnimator?.play();
   }
 
   Future<void> playrewind() async {
-    offlineImageSequenceAnimator?.rewind();
+    offlineImageSequenceAnimator!.rewind();
 
     await Future.delayed(Duration(
         milliseconds: offlineImageSequenceAnimator!.totalTime.toInt()));
@@ -45,7 +46,7 @@ class LoadingDialogShoeAnimation extends StatelessWidget {
                   0,
                   "png",
                   24,
-                  waitUntilCacheIsComplete: true,
+                  // waitUntilCacheIsComplete: true,
                   isAutoPlay: false,
                   onReadyToPlay: onReadyToPlay,
                 ),
@@ -59,16 +60,9 @@ class LoadingDialogShoeAnimation extends StatelessWidget {
             SizedBox(
               height: 30.0,
             ),
-            AnimatedFlipCounter(
-              value: 0,
-              suffix: "%",
-              textStyle: TextStyle(
-                fontSize: 36,
-                color: Colors.white54,
-                fontFamily: 'racesport',
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            )
           ],
         ),
       ),
