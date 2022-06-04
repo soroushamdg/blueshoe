@@ -60,7 +60,7 @@ class Home extends StatelessWidget {
                             AsyncSnapshot<List<int>> snapshot) =>
                         CounterText(steps: hexSnapshot2Dec(snapshot.data!)));
               } else {
-                return CounterText(steps: 2061);
+                return CounterText(steps: 0);
               }
             }),
           ],
@@ -80,7 +80,8 @@ class RefreshButton extends StatelessWidget {
     return Obx(() => Get.find<BlueController>().isConnected.value
         ? SquaredMaterial(
             onPressed: () async {
-              Get.find<LoadingController>().showLoadingScreen(context);
+              Get.find<LoadingController>()
+                  .showLoadingScreen(context, title: "Syncing...");
 
               await Future.delayed(Duration(seconds: 3));
 
@@ -111,7 +112,14 @@ class DisconnectButton extends StatelessWidget {
     return Obx(() => Get.find<BlueController>().isConnected.value
         ? SquaredMaterial(
             onPressed: () async {
+              Get.find<LoadingController>()
+                  .showLoadingScreen(context, title: "Disconnecting...");
+
+              await Future.delayed(Duration(seconds: 3));
+
               await Get.find<BlueController>().disconnect();
+
+              Get.find<LoadingController>().closeLoadingScreen(context);
             },
             title: "DIS-CONN",
             icon: Icons.bluetooth_disabled,
@@ -136,9 +144,14 @@ class ConnectButton extends StatelessWidget {
     return Obx(() => !Get.find<BlueController>().isConnected.value
         ? SquaredMaterial(
             onPressed: () async {
+              Get.find<LoadingController>()
+                  .showLoadingScreen(context, title: "Searching...");
               await Get.find<BlueController>().startScan();
               await Future.delayed(const Duration(seconds: 2), () {});
               List<String> results = Get.find<BlueController>().scanneddevices;
+
+              Get.find<LoadingController>().closeLoadingScreen(context);
+
               await showModalBottomSheet(
                   context: context,
                   builder: (context) {
@@ -163,12 +176,13 @@ class ConnectButton extends StatelessWidget {
                                   return ListTile(
                                     onTap: () async {
                                       Get.find<LoadingController>()
-                                          .showLoadingScreen(context);
+                                          .showLoadingScreen(context,
+                                              title: "Connecting...");
 
                                       await Get.find<BlueController>()
                                           .connectDevice(results[index]);
                                       await Future.delayed(
-                                          Duration(seconds: 2));
+                                          Duration(seconds: 3));
                                       bool connected =
                                           Get.find<BlueController>()
                                               .isConnected
@@ -195,14 +209,21 @@ class ConnectButton extends StatelessWidget {
                       ),
                     );
                   });
+              if (Get.find<BlueController>().isConnected.value) {
+                Get.find<LoadingController>()
+                    .showLoadingScreen(context, title: "Syncing...");
 
-              Get.find<LoadingController>().showLoadingScreen(context);
+                await Future.delayed(Duration(seconds: 3));
 
-              await Future.delayed(Duration(seconds: 3));
+                await Get.find<BlueController>().searchforservices();
 
-              await Get.find<BlueController>().searchforservices();
-
-              Get.find<LoadingController>().closeLoadingScreen(context);
+                Get.find<LoadingController>().closeLoadingScreen(context);
+              } else {
+                Get.snackbar(
+                  'Oops!',
+                  'Couldn\'t connect to the device',
+                );
+              }
             },
             title: "CONNECT",
             icon: Icons.bluetooth_connected,

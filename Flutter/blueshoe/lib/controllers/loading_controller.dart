@@ -11,14 +11,16 @@ class LoadingController extends GetxController {
     print("Loading Controller created!");
   }
 
-  void showLoadingScreen(BuildContext context) {
+  void showLoadingScreen(BuildContext context, {String title = "Syncing..."}) {
     Navigator.push(
         context,
         MaterialPageRoute(
             fullscreenDialog: true,
             builder: (BuildContext context) {
               return Scaffold(
-                body: LoadingDialogShoeAnimation(),
+                body: LoadingDialogShoeAnimation(
+                  title: title,
+                ),
               );
             }));
   }

@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:image_sequence_animator/image_sequence_animator.dart';
 
 class LoadingDialogShoeAnimation extends StatelessWidget {
+  LoadingDialogShoeAnimation({this.title = "Syncing..."});
+  final String title;
   ImageSequenceAnimatorState? offlineImageSequenceAnimator;
 
   void onReadyToPlay(ImageSequenceAnimatorState _imageSequenceAnimator) async {
@@ -52,10 +54,19 @@ class LoadingDialogShoeAnimation extends StatelessWidget {
                 ),
               ),
             ),
-            Text(
-              "SYNCING...",
-              style: TextStyle(
-                  color: Colors.white, fontFamily: 'racesport', fontSize: 36.0),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15.0),
+              child: FittedBox(
+                fit: BoxFit.fitWidth,
+                child: Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'racesport',
+                    fontSize: 36.0,
+                  ),
+                ),
+              ),
             ),
             SizedBox(
               height: 30.0,
