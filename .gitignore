@@ -48,3 +48,8 @@ Flutter/blueshoe/android/app/release
 Flutter/blueshoe/android/
 Flutter/blueshoe/build/
 Flutter/blueshoe/windows/
+
+
+*.blend
+*.blend1
+*.bin
