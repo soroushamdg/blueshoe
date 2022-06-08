@@ -3,6 +3,9 @@
 #include <Time.h>
 #include <TimeAlarms.h>
 
+#include <Wire.h> // Wire library - used for I2C communication
+#include <ADXL345.h>
+
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -15,17 +18,24 @@
 
 #include <BLEpedometer.h>
 
-#include <Wire.h> // Wire library - used for I2C communication
-
-#include <ADXL345.h>
-
-ADXL345 accel(ADXL345_ALT);
-float X_out, Y_out, Z_out; // Outputs
+int16_t X_OFFSET;
+int16_t Y_OFFSET;
+int16_t Z_OFFSET;
 
 TaskHandle_t handle_pedometerTask;
 
 bool deviceConnected = false;
-memUint16_t pedometerCounter = 0;
+
+uint16_t pedometerCounter = 0;
+
+AlarmID_t refreshAlarm;
+
+ADXL345 accel(ADXL345_ALT);
+
+int16_t X_out, Z_out; // Outputs
+
+uint16_t x2z2_out;
+uint16_t x2z2_out_old;
 
 // battery, something counter, on/off led, serial communicate.
 
@@ -38,12 +48,16 @@ class BLECallbacks : public BLEServerCallbacks
     Serial.print("Connected to ");
     Serial.print(server->getConnectedCount());
     Serial.println("devices.");
+    Alarm.delay(1000);
+    Alarm.enable(refreshAlarm);
   }
 
   void onDisconnect(BLEServer *server)
   {
     deviceConnected = false;
     Serial.println("Disonnected device.");
+    Alarm.disable(refreshAlarm);
+
     server->getAdvertising()->addServiceUUID(PHYSICALACTIVITYMONITOR_SERVICE_UUID);
     server->getAdvertising()->start();
     Serial.println("Started advertising again...");
@@ -54,7 +68,6 @@ class pedometerCharCallbacks : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-
     pCharacteristic->setValue(":OK:");
   }
 };
@@ -66,18 +79,51 @@ void refreshBLEvalues()
   Serial.println("RUNNING REFRESH.");
   if (!deviceConnected)
     return;
-
-  BLEpedometer.refresh();
+  try
+  {
+    BLEpedometer.refresh(pedometerCounter);
+    pedometerCounter = 0;
+  }
+  catch (const std::exception &e)
+  {
+    Serial.println(e.what());
+  }
 }
 
 void changerandomvalues()
 {
-  pedometerCounter = (uint16_t)(random(65533));
+  // pedometerCounter = (uint16_t)(random(65533));
+  Serial.print("pedometer value -> ");
+  Serial.println(pedometerCounter);
+}
+
+void calibrate()
+{
+  int16_t dataX_sum = 0;
+  int16_t dataY_sum = 0;
+  int16_t dataZ_sum = 0;
+
+  for (int i = 0; i < 25; i++)
+  {
+    if (accel.update())
+    {
+      dataX_sum += accel.getRawX();
+      dataY_sum += accel.getRawY();
+      dataZ_sum += accel.getRawZ();
+    }
+    Alarm.delay(100);
+  }
+  X_OFFSET = dataX_sum / 25;
+  Y_OFFSET = dataY_sum / 25;
+  Z_OFFSET = dataZ_sum / 25;
 }
 
 void setup()
 {
   Serial.begin(115250);
+
+  Serial.println(esp_reset_reason());
+
   BLEDevice::init("BlueTest");
   pinMode(ONBOARD_LED_PIN, OUTPUT); // Declare the LED as an output
 
@@ -108,7 +154,7 @@ void setup()
   // - ADXL345_RATE_100HZ:  100 Hz
   // - ADXL345_RATE_50HZ:   50 Hz
   // - ADXL345_RATE_25HZ:   25 Hz
-  // - ...
+  // // - ...
   if (!accel.writeRate(ADXL345_RATE_25HZ))
   {
     Serial.println("write rate: failed");
@@ -153,8 +199,19 @@ void setup()
   server->getAdvertising()->start();
   Serial.println("Bluetooth init. Waiting for client...");
 
-  Alarm.timerRepeat(5, refreshBLEvalues);
+  calibrate();
+
+  pedometerCounter = 0;
+
+  X_out = 0;
+  Z_out = 0;
+
+  x2z2_out = 0;
+  x2z2_out_old = 0;
+
+  refreshAlarm = Alarm.timerRepeat(5, refreshBLEvalues);
   Alarm.timerRepeat(3, changerandomvalues);
+  Alarm.disable(refreshAlarm);
 }
 
 void printDigits(int digits)
@@ -173,23 +230,29 @@ void systemup_time()
 }
 void loop()
 {
-  // if (led_read.startsWith(":") && led_read.endsWith(":"))
-  // {
-  //   if (led_read.equals(":LED!1:"))
-  //     digitalWrite(ONBOARD_LED_PIN, HIGH);
-  //   if (led_read.equals(":LED!0:"))
-  //     digitalWrite(ONBOARD_LED_PIN, LOW);
-  // }
-
   // === Read acceleromter data === //
   if (accel.update())
   {
-    Serial.print(accel.getX());
-    Serial.print(",");
-    Serial.print(accel.getY());
-    Serial.print(",");
-    Serial.print(accel.getZ());
-    Serial.println("");
+    X_out = accel.getRawX() - X_OFFSET;
+    Z_out = accel.getRawZ() - Z_OFFSET;
+
+    x2z2_out_old = x2z2_out;
+    x2z2_out = sqrt(pow(X_out, 2) + pow(Z_out, 2));
+
+    Serial.print("X : ");
+    Serial.println(X_out);
+    Serial.print("Z : ");
+    Serial.println(Z_out);
+
+    if (x2z2_out_old > x2z2_out && x2z2_out_old > 150)
+    {
+      Serial.print("x2z2 now : ");
+      Serial.println(x2z2_out);
+      Serial.print("x2z2 old : ");
+      Serial.println(x2z2_out_old);
+
+      pedometerCounter++;
+    }
   }
   else
   {
@@ -199,5 +262,8 @@ void loop()
       Alarm.delay(50);
     }
   }
+
   Alarm.delay(200);
 }
+//  pedometerCounter = accel.getX() * 100 + accel.getY() * 100 + accel.getZ() * 100;
+//     Serial.println("_______________ UPDATED _______________");

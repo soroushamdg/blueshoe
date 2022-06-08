@@ -5,11 +5,11 @@ private:
     uint16_t _value = 0;
 
 public:
-    memUint16_t *value;
+    uint16_t *pedoCounter;
     // BLE PEDOMETER CHARACTERISTIC
     BLECharacteristic BLEpedometerCharacteristic = BLECharacteristic(STEPCOUNTER_CAR_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
 
-    void init(BLEServer *server, memUint16_t *_value, bool notify = false)
+    void init(BLEServer *server, uint16_t *_value, bool notify = false)
     {
         try
         {
@@ -25,10 +25,10 @@ public:
                 _notify = true;
             }
 
-            value = _value;
+            pedoCounter = _value;
 
             BLEpedometerService->start();
-            this->sendValue();
+            sendValue(0);
         }
         catch (const std::exception &e)
         {
@@ -36,15 +36,9 @@ public:
         }
     }
 
-    bool didValueChange()
+    void sendValue(uint16_t value)
     {
-        return (value->current() != value->old());
-    }
-
-    void sendValue()
-    {
-        _value = value->current();
-
+        _value = value;
         Serial.print("REAL PEDO VALUE -> ");
         Serial.println(_value, HEX);
 
@@ -54,10 +48,9 @@ public:
         BLEpedometerCharacteristic.notify();
     }
 
-    void refresh()
+    void refresh(uint16_t value)
     {
-        if (didValueChange())
-            this->sendValue();
+        sendValue(value);
         return;
     }
 };

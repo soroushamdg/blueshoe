@@ -110,6 +110,7 @@ class BlueController extends GetxController {
             try {
               print("Disconnected first");
               r.device.disconnect();
+              await Future.delayed(Duration(seconds: 2));
             } catch (e) {}
             await r.device.connect(autoConnect: false).whenComplete(() {
               device = r.device;

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:animated_flip_counter/animated_flip_counter.dart';
 import 'package:blueshoe/controllers/bluetooth_controller.dart';
 import 'package:blueshoe/controllers/loading_controller.dart';
+import 'package:blueshoe/controllers/memory_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -57,8 +58,12 @@ class Home extends StatelessWidget {
                     initialData: const [0],
                     stream: Get.find<BlueController>().pedometerChar?.value,
                     builder: (BuildContext context,
-                            AsyncSnapshot<List<int>> snapshot) =>
-                        CounterText(steps: hexSnapshot2Dec(snapshot.data!)));
+                        AsyncSnapshot<List<int>> snapshot) {
+                      Get.find<MemoryController>().steps.value +=
+                          hexSnapshot2Dec(snapshot.data!);
+                      var value = Get.find<MemoryController>().steps.value;
+                      return CounterText(steps: value);
+                    });
               } else {
                 return CounterText(steps: 0);
               }

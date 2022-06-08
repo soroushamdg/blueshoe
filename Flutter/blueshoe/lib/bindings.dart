@@ -1,3 +1,4 @@
+import 'package:blueshoe/controllers/memory_controller.dart';
 import 'package:get/get.dart';
 import 'package:blueshoe/controllers/bluetooth_controller.dart';
 import 'package:blueshoe/controllers/loading_controller.dart';
@@ -8,5 +9,6 @@ class MyBindings extends Bindings {
     // TODO: implement dependencies
     Get.put(BlueController());
     Get.put(LoadingController());
+    Get.put(MemoryController());
   }
 }
