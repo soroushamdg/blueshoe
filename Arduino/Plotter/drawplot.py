@@ -10,7 +10,8 @@ df = pd.read_csv('x_z_moving_2.csv')
 x_data = df['data 0'].tolist()
 z_data = df['data 2'].tolist()
 df['data 4'] = [
-    pow(x_data[i], 2) + pow(z_data[i], 2) for i in range(len(x_data))
+    math.sqrt(pow(x_data[i], 2) + pow(z_data[i], 2))
+    for i in range(len(x_data))
 ]
 
 fig = px.line(df, x='Program Time [s]', y='data 4', title='X and Z plot')

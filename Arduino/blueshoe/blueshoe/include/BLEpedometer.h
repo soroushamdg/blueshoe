@@ -28,7 +28,6 @@ public:
             pedoCounter = _value;
 
             BLEpedometerService->start();
-            sendValue(0);
         }
         catch (const std::exception &e)
         {
