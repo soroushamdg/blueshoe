@@ -32,10 +32,10 @@ AlarmID_t refreshAlarm;
 
 ADXL345 accel(ADXL345_ALT);
 
-int16_t X_out, Z_out; // Outputs
+int16_t Y_out, Z_out; // Outputs
 
-uint16_t x2z2_out;
-uint16_t x2z2_out_old;
+uint16_t y2z2_out;
+uint16_t y2z2_out_old;
 
 // battery, something counter, on/off led, serial communicate.
 
@@ -122,8 +122,6 @@ void setup()
 {
   Serial.begin(115250);
 
-  Serial.println(esp_reset_reason());
-
   BLEDevice::init("BlueTest");
   pinMode(ONBOARD_LED_PIN, OUTPUT); // Declare the LED as an output
 
@@ -187,6 +185,14 @@ void setup()
     }
   }
 
+  // accel.setActivityXYZ();
+  // accel.setActivityThreshold(0);
+  // accel.setInterruptMapping(0x04, 0x00);
+  // accel.setInterruptEnable(0x04, 1);
+
+  // pinMode(35, INPUT);
+  // attachInterrupt(35, Ext_INT1_ISR, HIGH);
+
   setTime(0, 0, 0, 0, 0, 0);
 
   BLEServer *server = BLEDevice::createServer();
@@ -203,11 +209,11 @@ void setup()
 
   pedometerCounter = 0;
 
-  X_out = 0;
+  Y_out = 0;
   Z_out = 0;
 
-  x2z2_out = 0;
-  x2z2_out_old = 0;
+  y2z2_out = 0;
+  y2z2_out_old = 0;
 
   refreshAlarm = Alarm.timerRepeat(5, refreshBLEvalues);
   Alarm.timerRepeat(3, changerandomvalues);
@@ -233,23 +239,23 @@ void loop()
   // === Read acceleromter data === //
   if (accel.update())
   {
-    X_out = accel.getRawX() - X_OFFSET;
+    Y_out = accel.getRawY() - Y_OFFSET;
     Z_out = accel.getRawZ() - Z_OFFSET;
 
-    x2z2_out_old = x2z2_out;
-    x2z2_out = sqrt(pow(X_out, 2) + pow(Z_out, 2));
+    y2z2_out_old = y2z2_out;
+    y2z2_out = sqrt(pow(Y_out, 2) + pow(Z_out, 2));
 
-    Serial.print("X : ");
-    Serial.println(X_out);
+    Serial.print("Y : ");
+    Serial.println(Y_out);
     Serial.print("Z : ");
     Serial.println(Z_out);
 
-    if (x2z2_out_old > x2z2_out && x2z2_out_old > 150)
+    if (y2z2_out_old > y2z2_out && y2z2_out_old > 150)
     {
       Serial.print("x2z2 now : ");
-      Serial.println(x2z2_out);
+      Serial.println(y2z2_out);
       Serial.print("x2z2 old : ");
-      Serial.println(x2z2_out_old);
+      Serial.println(y2z2_out_old);
 
       pedometerCounter++;
     }
@@ -265,5 +271,3 @@ void loop()
 
   Alarm.delay(200);
 }
-//  pedometerCounter = accel.getX() * 100 + accel.getY() * 100 + accel.getZ() * 100;
-//     Serial.println("_______________ UPDATED _______________");
