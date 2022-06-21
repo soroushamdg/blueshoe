@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <EEPROM.h>
+#include <Preferences.h>
 
 #include <Time.h>
 #include <TimeAlarms.h>
@@ -17,6 +19,8 @@
 #define ONBOARD_LED_PIN 2
 
 #include <BLEpedometer.h>
+
+Preferences preferences;
 
 int16_t X_OFFSET;
 int16_t Y_OFFSET;
@@ -37,6 +41,11 @@ int16_t Y_out, Z_out; // Outputs
 uint16_t y2z2_out;
 uint16_t y2z2_out_old;
 
+uint16_t steadySamples = 0;
+
+BLEServer *_server;
+uint16_t connectID;
+
 // battery, something counter, on/off led, serial communicate.
 
 class BLECallbacks : public BLEServerCallbacks
@@ -44,23 +53,27 @@ class BLECallbacks : public BLEServerCallbacks
 
   void onConnect(BLEServer *server)
   {
-    deviceConnected = true;
     Serial.print("Connected to ");
     Serial.print(server->getConnectedCount());
     Serial.println("devices.");
-    Alarm.delay(1000);
+    connectID = server->getConnId();
     Alarm.enable(refreshAlarm);
+
+    deviceConnected = true;
   }
 
   void onDisconnect(BLEServer *server)
   {
-    deviceConnected = false;
+
     Serial.println("Disonnected device.");
     Alarm.disable(refreshAlarm);
-
-    server->getAdvertising()->addServiceUUID(PHYSICALACTIVITYMONITOR_SERVICE_UUID);
-    server->getAdvertising()->start();
-    Serial.println("Started advertising again...");
+    deviceConnected = false;
+    if (steadySamples != 0)
+    {
+      server->getAdvertising()->addServiceUUID(PHYSICALACTIVITYMONITOR_SERVICE_UUID);
+      server->getAdvertising()->start();
+      Serial.println("Started advertising again...");
+    }
   }
 };
 
@@ -76,11 +89,16 @@ BLEpedometerController BLEpedometer = BLEpedometerController();
 
 void refreshBLEvalues()
 {
-  Serial.println("RUNNING REFRESH.");
   if (!deviceConnected)
+  {
     return;
+  }
+
+  Serial.println("RUNNING REFRESH.");
+
   try
   {
+    Alarm.delay(500);
     BLEpedometer.refresh(pedometerCounter);
     pedometerCounter = 0;
   }
@@ -94,7 +112,10 @@ void changerandomvalues()
 {
   // pedometerCounter = (uint16_t)(random(65533));
   Serial.print("pedometer value -> ");
+  preferences.putUShort("counter", pedometerCounter);
+
   Serial.println(pedometerCounter);
+  Serial.println(preferences.getUShort("counter"));
 }
 
 void calibrate()
@@ -118,12 +139,91 @@ void calibrate()
   Z_OFFSET = dataZ_sum / 25;
 }
 
+uint16_t eeprom_read_pedo()
+{
+  return (uint16_t)(8 << EEPROM.read(0)) + (EEPROM.read(1));
+}
+
+void eeprom_write_pedo()
+{
+  EEPROM.write(pedometerCounter >> 8, 0);
+  EEPROM.write((pedometerCounter << 8) >> 8, 1);
+}
+
+byte read_register(int I2CAddress, byte address)
+{
+  // Send a request
+  // Start talking to the device at the specified address
+  Wire.beginTransmission(I2CAddress);
+  // Send a bit asking for requested register address
+  Wire.write(address);
+  // Complete Transmission
+  Wire.endTransmission(false);
+  // Read the register from the device
+  // Request 1 Byte from the specified address
+  Wire.requestFrom(I2CAddress, 1);
+  // wait for response
+  while (Wire.available() == 0)
+    ;
+  // Get the temp and read it into a variable
+  byte data = Wire.read();
+  return data;
+}
+
+// Writes a single byte (data) into address
+void write_register(int I2CAddress, unsigned char address, unsigned char data)
+{
+  // Send a request
+  // Start talking to the device at the specified address
+  Wire.beginTransmission(I2CAddress);
+  // Send a bit asking for requested register address
+  Wire.write(address);
+  Wire.write(data);
+  // Complete Transmission
+  Wire.endTransmission(true);
+}
+
+void Ext_INT1_ISR()
+{
+  Serial.println("Interrupt called");
+}
+
 void setup()
 {
   Serial.begin(115250);
 
   BLEDevice::init("BlueTest");
   pinMode(ONBOARD_LED_PIN, OUTPUT); // Declare the LED as an output
+
+  preferences.begin("pedocounter", false);
+
+  esp_sleep_enable_touchpad_wakeup();
+
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch (wakeup_reason)
+  {
+  case ESP_SLEEP_WAKEUP_EXT0:
+    Serial.println("Wakeup caused by external signal using RTC_IO");
+    break;
+  case ESP_SLEEP_WAKEUP_EXT1:
+    Serial.println("Wakeup caused by external signal using RTC_CNTL");
+    break;
+  case ESP_SLEEP_WAKEUP_TIMER:
+    Serial.println("Wakeup caused by timer");
+    break;
+  case ESP_SLEEP_WAKEUP_TOUCHPAD:
+    Serial.println("Wakeup caused by touchpad");
+    break;
+  case ESP_SLEEP_WAKEUP_ULP:
+    Serial.println("Wakeup caused by ULP program");
+    break;
+  default:
+    Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
+    break;
+  }
 
   Wire.begin(); // Initiate the Wire library
 
@@ -185,29 +285,60 @@ void setup()
     }
   }
 
-  // accel.setActivityXYZ();
-  // accel.setActivityThreshold(0);
-  // accel.setInterruptMapping(0x04, 0x00);
-  // accel.setInterruptEnable(0x04, 1);
+  // // accel.setActivityXYZ();
+  // write_register(0x53, 0x27, 0b01110000);
+  // // accel.setActivityThreshold(0);
+  // int activityThreshold = constrain(10, 0, 255);
+  // byte _b = byte(activityThreshold);
+  // write_register(0x53, 0x24, _b);
+  // // accel.setInterruptMapping(0x04, 0x00);
+  // write_register(0x53, 0x2f, 0b11111111);
+  // // accel.setInterruptEnable(0x04, 1);
+  // write_register(0x53, 0x2e, 0b11111111);
 
-  // pinMode(35, INPUT);
-  // attachInterrupt(35, Ext_INT1_ISR, HIGH);
+  write_register(0x53, 0x24, 0x04);
+  write_register(0x53, 0x25, 0x02);
+  write_register(0x53, 0x26, 0x01); // time register
+  write_register(0x53, 0x27, 0b00111000);
+  write_register(0x53, 0x2D, 0x38); // accelerometer auto-sleep
+  write_register(0x53, 0x2F, 0x08);
+  write_register(0x53, 0x2E, 0x18);
+
+  // Serial.println(read_register(0x53, 0x27), BIN);
+  // Serial.println(read_register(0x53, 0x24), BIN);
+  // Serial.println(read_register(0x53, 0x2f), BIN);
+  // Serial.println(read_register(0x53, 0x2e), BIN);
+  // Serial.println(read_register(0x53, 0x30), BIN);
+
+  Serial.println(read_register(0x53, 0x24), BIN);
+  Serial.println(read_register(0x53, 0x25), BIN);
+  Serial.println(read_register(0x53, 0x26), BIN);
+  Serial.println(read_register(0x53, 0x27), BIN);
+  Serial.println(read_register(0x53, 0x2D), BIN); // accelerometer auto-sleep
+  Serial.println(read_register(0x53, 0x2F), BIN);
+  Serial.println(read_register(0x53, 0x2E), BIN);
+  Serial.println(read_register(0x53, 0x30), BIN);
+
+  attachInterrupt(digitalPinToInterrupt(35), Ext_INT1_ISR, RISING);
+  touchAttachInterrupt(T3, Ext_INT1_ISR, 40);
+
+  read_register(0x53, 0x30);
 
   setTime(0, 0, 0, 0, 0, 0);
 
-  BLEServer *server = BLEDevice::createServer();
-  server->setCallbacks(new BLECallbacks());
+  _server = BLEDevice::createServer();
+  _server->setCallbacks(new BLECallbacks());
 
   // INITIATE SERVERS
-  BLEpedometer.init(server, &pedometerCounter, true);
+  BLEpedometer.init(_server, &pedometerCounter, true);
 
-  server->getAdvertising()->addServiceUUID(PHYSICALACTIVITYMONITOR_SERVICE_UUID);
-  server->getAdvertising()->start();
+  _server->getAdvertising()->addServiceUUID(PHYSICALACTIVITYMONITOR_SERVICE_UUID);
+  _server->getAdvertising()->start();
   Serial.println("Bluetooth init. Waiting for client...");
 
   calibrate();
 
-  pedometerCounter = 0;
+  pedometerCounter = preferences.getUShort("counter", 0);
 
   Y_out = 0;
   Z_out = 0;
@@ -215,7 +346,7 @@ void setup()
   y2z2_out = 0;
   y2z2_out_old = 0;
 
-  refreshAlarm = Alarm.timerRepeat(5, refreshBLEvalues);
+  refreshAlarm = Alarm.timerRepeat(10, refreshBLEvalues);
   Alarm.timerRepeat(3, changerandomvalues);
   Alarm.disable(refreshAlarm);
 }
@@ -258,15 +389,34 @@ void loop()
       Serial.println(y2z2_out_old);
 
       pedometerCounter++;
+
+      steadySamples = 0;
+    }
+    else
+    {
+      steadySamples++;
+      Serial.println(steadySamples);
+      if (steadySamples > 5 * 1 * 60)
+      {
+        preferences.putUShort("counter", pedometerCounter);
+        _server->disconnect(connectID);
+        deviceConnected = false;
+        Serial.println("Disonnected device.");
+        Alarm.disable(refreshAlarm);
+
+        preferences.end();
+        Serial.println("Putting to sleep");
+        write_register(0x53, 0x27, 0b00000100);
+
+        esp_deep_sleep_start();
+      }
     }
   }
   else
   {
     Serial.println("update failed");
-    while (1)
-    {
-      Alarm.delay(50);
-    }
+
+    Alarm.delay(50);
   }
 
   Alarm.delay(200);
