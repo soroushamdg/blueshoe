@@ -10,10 +10,11 @@ import '../constants/colors.dart';
 import '../functions.dart';
 
 class Home extends StatelessWidget {
-  const Home({Key? key}) : super(key: key);
+  int last_steps = 0;
 
   @override
   Widget build(BuildContext context) {
+    last_steps = Get.find<MemoryController>().steps.value;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -55,17 +56,18 @@ class Home extends StatelessWidget {
             Obx(() {
               if (Get.find<BlueController>().pedometerServiceReady.value) {
                 return StreamBuilder<List<int>>(
-                    initialData: const [0],
+                    initialData: [0],
                     stream: Get.find<BlueController>().pedometerChar?.value,
                     builder: (BuildContext context,
                         AsyncSnapshot<List<int>> snapshot) {
                       Get.find<MemoryController>().steps.value +=
                           hexSnapshot2Dec(snapshot.data!);
-                      var value = Get.find<MemoryController>().steps.value;
-                      return CounterText(steps: value);
+                      last_steps = Get.find<MemoryController>().steps.value;
+
+                      return CounterText(steps: last_steps);
                     });
               } else {
-                return CounterText(steps: 0);
+                return CounterText(steps: last_steps);
               }
             }),
           ],
@@ -153,6 +155,7 @@ class ConnectButton extends StatelessWidget {
                   .showLoadingScreen(context, title: "Searching...");
               await Get.find<BlueController>().startScan();
               await Future.delayed(const Duration(seconds: 2), () {});
+
               List<String> results = Get.find<BlueController>().scanneddevices;
 
               Get.find<LoadingController>().closeLoadingScreen(context);
@@ -248,7 +251,7 @@ class CounterText extends StatelessWidget {
     required this.steps,
   });
 
-  final int steps;
+  int steps;
 
   int firstStageDigits() {
     if (steps.toString().length <= 3) {
@@ -271,6 +274,9 @@ class CounterText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // if (steps == 0) {
+    //   steps = Get.find<MemoryController>().steps.value.toInt();
+    // }
     return Container(
       height: 120,
       margin: EdgeInsets.only(left: 15.0),

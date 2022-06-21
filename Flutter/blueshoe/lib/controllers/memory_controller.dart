@@ -11,6 +11,7 @@ class MemoryController extends GetxController {
     var box = GetStorage();
     if (box.read('steps') != null) {
       var _steps = box.read('steps');
+      print("loaded steps.");
       steps.value = int.parse(_steps);
     }
 

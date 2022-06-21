@@ -7,8 +7,8 @@ class MyBindings extends Bindings {
   @override
   void dependencies() {
     // TODO: implement dependencies
+    Get.put(MemoryController());
     Get.put(BlueController());
     Get.put(LoadingController());
-    Get.put(MemoryController());
   }
 }

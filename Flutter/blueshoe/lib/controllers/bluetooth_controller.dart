@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:blueshoe/constants/uuidbank.dart';
@@ -11,6 +13,9 @@ class BlueController extends GetxController {
   RxList<BluetoothService> services = <BluetoothService>[].obs;
 
   List<String> scanneddevices = [];
+
+  Timer? timerReconnect;
+  Timer? timerCheckConnection;
 
   BluetoothService? batteryService;
   BluetoothCharacteristic? batteryChar;
@@ -82,6 +87,7 @@ class BlueController extends GetxController {
   Future<void> startScan() async {
     // Start scanning
     await flutterBlue.startScan(timeout: Duration(seconds: 4));
+
     _listResultScan();
   }
 
@@ -127,6 +133,8 @@ class BlueController extends GetxController {
           throw 'Couldn\'t find the device';
         }
       });
+      timerCheckConnection =
+          Timer.periodic(Duration(seconds: 10), (timer) => searchforservices());
       return true;
     } on Exception catch (e) {
       print(e);
@@ -183,7 +191,16 @@ class BlueController extends GetxController {
 
       return Future<bool>.value(true);
     } on Exception catch (e) {
+      timerCheckConnection!.cancel();
       print(e);
+      if (device != null) {
+        await device!.disconnect();
+        device = null;
+        resetBatteryService();
+        resetLEDService();
+        resetPedometerService();
+      }
+      isConnected.value = false;
       return Future<bool>.value(false);
     }
   }
