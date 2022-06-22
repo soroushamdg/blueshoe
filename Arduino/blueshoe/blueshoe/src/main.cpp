@@ -185,7 +185,8 @@ void write_register(int I2CAddress, unsigned char address, unsigned char data)
 
 void Ext_INT1_ISR()
 {
-  Serial.println("Interrupt called");
+  // Serial.println("Interrupt called");
+  // digitalWrite(2, HIGH);
 }
 
 void setup()
@@ -195,9 +196,11 @@ void setup()
   BLEDevice::init("BlueTest");
   pinMode(ONBOARD_LED_PIN, OUTPUT); // Declare the LED as an output
 
+  digitalWrite(2, HIGH);
+
   preferences.begin("pedocounter", false);
 
-  esp_sleep_enable_touchpad_wakeup();
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, HIGH);
 
   esp_sleep_wakeup_cause_t wakeup_reason;
 
@@ -296,13 +299,13 @@ void setup()
   // // accel.setInterruptEnable(0x04, 1);
   // write_register(0x53, 0x2e, 0b11111111);
 
-  write_register(0x53, 0x24, 0x04);
-  write_register(0x53, 0x25, 0x02);
-  write_register(0x53, 0x26, 0x01); // time register
-  write_register(0x53, 0x27, 0b00111000);
-  write_register(0x53, 0x2D, 0x38); // accelerometer auto-sleep
-  write_register(0x53, 0x2F, 0x08);
-  write_register(0x53, 0x2E, 0x18);
+  // write_register(0x53, 0x24, 0x04);
+  // write_register(0x53, 0x25, 0x02);
+  // write_register(0x53, 0x26, 0x01); // time register
+  // write_register(0x53, 0x27, 0b00111000);
+  // write_register(0x53, 0x2D, 0x38); // accelerometer auto-sleep
+  // write_register(0x53, 0x2F, 0x08);
+  // write_register(0x53, 0x2E, 0x18);
 
   // Serial.println(read_register(0x53, 0x27), BIN);
   // Serial.println(read_register(0x53, 0x24), BIN);
@@ -310,16 +313,26 @@ void setup()
   // Serial.println(read_register(0x53, 0x2e), BIN);
   // Serial.println(read_register(0x53, 0x30), BIN);
 
-  Serial.println(read_register(0x53, 0x24), BIN);
-  Serial.println(read_register(0x53, 0x25), BIN);
-  Serial.println(read_register(0x53, 0x26), BIN);
-  Serial.println(read_register(0x53, 0x27), BIN);
-  Serial.println(read_register(0x53, 0x2D), BIN); // accelerometer auto-sleep
-  Serial.println(read_register(0x53, 0x2F), BIN);
-  Serial.println(read_register(0x53, 0x2E), BIN);
-  Serial.println(read_register(0x53, 0x30), BIN);
+  // Serial.println(read_register(0x53, 0x24), BIN);
+  // Serial.println(read_register(0x53, 0x25), BIN);
+  // Serial.println(read_register(0x53, 0x26), BIN);
+  // Serial.println(read_register(0x53, 0x27), BIN);
+  // Serial.println(read_register(0x53, 0x2D), BIN); // accelerometer auto-sleep
+  // Serial.println(read_register(0x53, 0x2F), BIN);
+  // Serial.println(read_register(0x53, 0x2E), BIN);
+  // Serial.println(read_register(0x53, 0x30), BIN);
 
-  attachInterrupt(digitalPinToInterrupt(35), Ext_INT1_ISR, RISING);
+  // SETUP TAP DETECTION
+  write_register(0x53, 0x1d, 0x40);       // tap threshold
+  write_register(0x53, 0x21, 0x30);       // tap duration
+  write_register(0x53, 0x22, 0x40);       // second tap latency
+  write_register(0x53, 0x23, 0xff);       // second tap window
+  write_register(0x53, 0x2a, 0b00000111); // tap axes
+  write_register(0x53, 0x2d, 0b00001001); // power controll
+  write_register(0x53, 0x2f, 0b01000000); // interrupt map
+  write_register(0x53, 0x2e, 0b01000000); // interrupt enable
+
+  attachInterrupt(digitalPinToInterrupt(35), Ext_INT1_ISR, HIGH);
   touchAttachInterrupt(T3, Ext_INT1_ISR, 40);
 
   read_register(0x53, 0x30);
@@ -349,6 +362,9 @@ void setup()
   refreshAlarm = Alarm.timerRepeat(10, refreshBLEvalues);
   Alarm.timerRepeat(3, changerandomvalues);
   Alarm.disable(refreshAlarm);
+  digitalWrite(2, LOW);
+  Alarm.delay(500);
+  digitalWrite(2, HIGH);
 }
 
 void printDigits(int digits)
@@ -368,6 +384,7 @@ void systemup_time()
 void loop()
 {
   // === Read acceleromter data === //
+
   if (accel.update())
   {
     Y_out = accel.getRawY() - Y_OFFSET;
@@ -406,7 +423,9 @@ void loop()
 
         preferences.end();
         Serial.println("Putting to sleep");
-        write_register(0x53, 0x27, 0b00000100);
+        write_register(0x53, 0x27, 0b00000101); // put adxl345 to sleep with 4 hz freq
+
+        digitalWrite(2, LOW);
 
         esp_deep_sleep_start();
       }
