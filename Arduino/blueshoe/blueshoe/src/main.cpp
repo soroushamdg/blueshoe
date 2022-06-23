@@ -329,7 +329,7 @@ void setup()
   write_register(0x53, 0x23, 0xff);       // second tap window
   write_register(0x53, 0x2a, 0b00000111); // tap axes
   write_register(0x53, 0x2d, 0b00001001); // power controll
-  write_register(0x53, 0x2f, 0b01000000); // interrupt map
+  write_register(0x53, 0x2f, 0b00000000); // interrupt map
   write_register(0x53, 0x2e, 0b01000000); // interrupt enable
 
   attachInterrupt(digitalPinToInterrupt(35), Ext_INT1_ISR, HIGH);
