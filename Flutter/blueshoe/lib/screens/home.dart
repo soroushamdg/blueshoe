@@ -10,11 +10,8 @@ import '../constants/colors.dart';
 import '../functions.dart';
 
 class Home extends StatelessWidget {
-  int last_steps = 0;
-
   @override
   Widget build(BuildContext context) {
-    last_steps = Get.find<MemoryController>().steps.value;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -60,14 +57,14 @@ class Home extends StatelessWidget {
                     stream: Get.find<BlueController>().pedometerChar?.value,
                     builder: (BuildContext context,
                         AsyncSnapshot<List<int>> snapshot) {
-                      Get.find<MemoryController>().steps.value +=
-                          hexSnapshot2Dec(snapshot.data!);
-                      last_steps = Get.find<MemoryController>().steps.value;
-
-                      return CounterText(steps: last_steps);
+                      Get.find<MemoryController>().steps.value =
+                          Get.find<MemoryController>().steps.value +
+                              hexSnapshot2Dec(snapshot.data!) * 2;
+                      return CounterText(
+                          steps: Get.find<MemoryController>().steps.value);
                     });
               } else {
-                return CounterText(steps: last_steps);
+                return CounterText(steps: 0);
               }
             }),
           ],

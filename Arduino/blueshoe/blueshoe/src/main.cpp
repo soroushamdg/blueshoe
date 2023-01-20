@@ -29,6 +29,7 @@ int16_t Z_OFFSET;
 TaskHandle_t handle_pedometerTask;
 
 bool deviceConnected = false;
+bool doCalibrate = true;
 
 uint16_t pedometerCounter = 0;
 
@@ -118,14 +119,21 @@ void changerandomvalues()
   Serial.println(preferences.getUShort("counter"));
 }
 
+int16_t dataX_sum = 0;
+int16_t dataY_sum = 0;
+int16_t dataZ_sum = 0;
+
 void calibrate()
 {
-  int16_t dataX_sum = 0;
-  int16_t dataY_sum = 0;
-  int16_t dataZ_sum = 0;
 
-  for (int i = 0; i < 25; i++)
+  dataX_sum = 0;
+  dataY_sum = 0;
+  dataZ_sum = 0;
+
+  Alarm.delay(500);
+  for (int i = 0; i < 5; i++)
   {
+
     if (accel.update())
     {
       dataX_sum += accel.getRawX();
@@ -134,9 +142,12 @@ void calibrate()
     }
     Alarm.delay(100);
   }
-  X_OFFSET = dataX_sum / 25;
-  Y_OFFSET = dataY_sum / 25;
-  Z_OFFSET = dataZ_sum / 25;
+  X_OFFSET = dataX_sum / 5;
+  Y_OFFSET = dataY_sum / 5;
+  Z_OFFSET = dataZ_sum / 5;
+
+  doCalibrate = false;
+  Serial.println("~~ CALIBRATED ~~");
 }
 
 uint16_t eeprom_read_pedo()
@@ -187,6 +198,12 @@ void Ext_INT1_ISR()
 {
   // Serial.println("Interrupt called");
   // digitalWrite(2, HIGH);
+  doCalibrate = true;
+}
+
+void TOUCH_INT_T3()
+{
+  doCalibrate = true;
 }
 
 void setup()
@@ -228,7 +245,11 @@ void setup()
     break;
   }
 
-  Wire.begin(); // Initiate the Wire library
+  Wire.begin(21, 22); // Initiate the Wire library
+
+  Alarm.delay(300);
+
+  write_register(0x53, 0x2d, 0b00001001); // power controll
 
   byte deviceID = accel.readDeviceID();
   if (deviceID != 0)
@@ -239,11 +260,12 @@ void setup()
   }
   else
   {
-    Serial.println("read device id: failed");
-    while (1)
+    while (accel.readDeviceID() == 0)
     {
-      delay(100);
+      Alarm.delay(300);
+      Serial.println("read device id: failed");
     }
+    Serial.println("read device id: OK");
   }
 
   // Data Rate
@@ -261,7 +283,7 @@ void setup()
     Serial.println("write rate: failed");
     while (1)
     {
-      delay(100);
+      Alarm.delay(100);
     }
   }
 
@@ -275,7 +297,7 @@ void setup()
     Serial.println("write range: failed");
     while (1)
     {
-      delay(100);
+      Alarm.delay(100);
     }
   }
 
@@ -284,7 +306,7 @@ void setup()
     Serial.println("start: failed");
     while (1)
     {
-      delay(100);
+      Alarm.delay(100);
     }
   }
 
@@ -323,17 +345,18 @@ void setup()
   // Serial.println(read_register(0x53, 0x30), BIN);
 
   // SETUP TAP DETECTION
-  write_register(0x53, 0x1d, 0x40);       // tap threshold
+  write_register(0x53, 0x1d, 0x18);       // tap threshold
   write_register(0x53, 0x21, 0x30);       // tap duration
-  write_register(0x53, 0x22, 0x40);       // second tap latency
+  write_register(0x53, 0x22, 0x42);       // second tap latency
   write_register(0x53, 0x23, 0xff);       // second tap window
   write_register(0x53, 0x2a, 0b00000111); // tap axes
   write_register(0x53, 0x2d, 0b00001001); // power controll
   write_register(0x53, 0x2f, 0b00000000); // interrupt map
-  write_register(0x53, 0x2e, 0b01000000); // interrupt enable
+  write_register(0x53, 0x2e, 0b00000000); // interrupt enable -> disable interrupt.
 
   attachInterrupt(digitalPinToInterrupt(35), Ext_INT1_ISR, HIGH);
-  touchAttachInterrupt(T3, Ext_INT1_ISR, 40);
+
+  touchAttachInterrupt(T3, TOUCH_INT_T3, 80);
 
   read_register(0x53, 0x30);
 
@@ -349,7 +372,8 @@ void setup()
   _server->getAdvertising()->start();
   Serial.println("Bluetooth init. Waiting for client...");
 
-  calibrate();
+  if (doCalibrate)
+    calibrate();
 
   pedometerCounter = preferences.getUShort("counter", 0);
 
@@ -383,12 +407,18 @@ void systemup_time()
 }
 void loop()
 {
+
+  if (doCalibrate)
+    calibrate();
+
   // === Read acceleromter data === //
+  analogWrite(ONBOARD_LED_PIN, 256);
 
   if (accel.update())
   {
     Y_out = accel.getRawY() - Y_OFFSET;
     Z_out = accel.getRawZ() - Z_OFFSET;
+    analogWrite(ONBOARD_LED_PIN, 256 - 64);
 
     y2z2_out_old = y2z2_out;
     y2z2_out = sqrt(pow(Y_out, 2) + pow(Z_out, 2));
@@ -406,6 +436,7 @@ void loop()
       Serial.println(y2z2_out_old);
 
       pedometerCounter++;
+      analogWrite(ONBOARD_LED_PIN, 256 - 64 - 64);
 
       steadySamples = 0;
     }
@@ -415,6 +446,9 @@ void loop()
       Serial.println(steadySamples);
       if (steadySamples > 5 * 1 * 60)
       {
+        write_register(0x53, 0x2e, 0b01000000); // interrupt enable -> enable interrupt.
+        read_register(0x53, 0x30);
+
         preferences.putUShort("counter", pedometerCounter);
         _server->disconnect(connectID);
         deviceConnected = false;
@@ -423,9 +457,10 @@ void loop()
 
         preferences.end();
         Serial.println("Putting to sleep");
-        write_register(0x53, 0x27, 0b00000101); // put adxl345 to sleep with 4 hz freq
+        write_register(0x53, 0x27, 0b00000100); // put adxl345 to sleep with 4 hz freq
 
-        digitalWrite(2, LOW);
+        for (int i = 255; i > 0; i--)
+          analogWrite(ONBOARD_LED_PIN, i);
 
         esp_deep_sleep_start();
       }
@@ -437,6 +472,8 @@ void loop()
 
     Alarm.delay(50);
   }
+
+  analogWrite(ONBOARD_LED_PIN, 0);
 
   Alarm.delay(200);
 }
